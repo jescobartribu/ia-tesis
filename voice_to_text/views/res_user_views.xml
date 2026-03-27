@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+<record id="view_users_form_inherit_apikeys" model="ir.ui.view">
+    <field name="name">res.users.form.apikeys.inherit</field>
+    <field name="model">res.users</field>
+    <!-- Ajusta inherit_id si tu base usa otro external id para la vista de usuarios -->
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+        <xpath expr="//page[@name='security']" position="inside">
+            <group string="API Keys">
+                <div class="text-muted" colspan="2">
+                    API Keys are used to connect to Odoo from external tools without the need for a password or Two-factor Authentication.
+                    <a href="https://www.odoo.com/documentation/17.0/developer/misc/api/external_api.html#api-keys" target="_blank">
+                        <i title="Documentation" class="fa fa-fw o_button_icon fa-info-circle"/>
+                        Learn more
+                    </a>
+                </div>
+                <div colspan="2" invisible="not api_key_ids">
+                    <field name="api_key_ids" nolabel="1" colspan="4" readonly="0">
+                        <tree editable="bottom" create="false" delete="false">
+                            <field name="name"/>
+                            <field name="scope"/>
+                            <field name="create_date"/>
+                            <button type="object" name="remove_token" string="Delete API key." icon="fa-trash"/>
+                            <button name="resend_token_by_email" type="object" string="Send Key by Email" class="btn-primary" data-hotkey="q"/>
+                        </tree>
+                    </field>
+                </div>
+                <div colspan="2">
+                    <button name="api_key_wizard_token_user" string="New API Key" confirm="Está seguro que desea borrar este token API?" type="object" class="btn btn-secondary"/>
+                </div>
+            </group>
+        </xpath>
+    </field>
+</record>
+
+ <record id="action_res_users_keys_description_external" model="ir.actions.act_window">
+    <field name="name">API Key: description input wizard</field>
+    <field name="res_model">res.users.apikeys.description.external</field>
+    <field name="target">new</field>
+    <field name="view_mode">form</field>
+</record>
+<record id="form_res_users_key_description_external" model="ir.ui.view">
+    <field name="name">API Key: description input form</field>
+    <field name="model">res.users.apikeys.description.external</field>
+    <field name="arch" type="xml">
+        <form>
+            <sheet>
+            <field name="user_id" invisible="1"/>
+            <h3 class="fw-bold">
+                Name your key
+            </h3>
+            <p>Enter a description of and purpose for the key.</p>
+            <field name="name" placeholder="What's this key for?"/>
+            <p>
+                It is very important that this description be clear
+                and complete, <strong>it will be the only way to
+                identify the key once created</strong>.
+            </p>
+            <footer>
+                <button name="make_key" type="object" string="Generate key" class="btn-primary" data-hotkey="q"/>
+                <button name="send_key_by_email" type="object" string="Generate Key and Send by Email" class="btn-primary" data-hotkey="q"/>
+                <button special="cancel" data-hotkey="x" string="Cancel" class="btn-secondary"/>
+            </footer>
+            </sheet>
+        </form>
+    </field>
+</record>
+
+</odoo>

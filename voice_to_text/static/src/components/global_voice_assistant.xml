@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="voice_to_text.VoiceSystray">
+        <div class="o_voice_systray_item px-2" style="cursor: pointer;" t-on-click="_onClick">
+            <i class="fa fa-microphone fa-lg"/>
+        </div>
+    </t>
+
+    <t t-name="voice_to_text.AssistantDialog">
+        <Dialog title="props.title" size="'sm'">
+            <div class="text-center p-4">
+                <div t-if="props.transcript.isListening" class="mb-3">
+                    <div class="spinner-grow text-primary" role="status"></div>
+                </div>
+                <h4 class="text-muted">Odoo</h4>
+                <p class="mt-3 fs-5 italic">
+                    <t t-esc="props.transcript.transcript"/>
+                </p>
+                <h4 class="text-muted">Respuesta</h4>
+                <p class="mt-3 fs-5 italic">
+                    <t t-esc="props.transcript.answer"/>
+                </p>
+                <div class="mt-4">
+                    <button class="btn btn-secondary" t-on-click="props.close">Cerrar</button>
+                </div>
+            </div>
+        </Dialog>
+    </t>
+</templates>

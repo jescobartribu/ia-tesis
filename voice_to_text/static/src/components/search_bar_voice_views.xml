@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="web.SearchBar" t-inherit-mode="extension">
+        <xpath expr="//i[contains(@class, 'o_searchview_icon')]" position="after">
+            <i class="fa fa-microphone ms-2" 
+               style="cursor: pointer; color: white !important;"
+               t-att-class="{'text-danger': voiceState.isListening}"
+               t-on-click.stop="_onVoiceSearchClick"
+               title="Buscar por voz"/>
+        </xpath>
+    </t>
+</templates>

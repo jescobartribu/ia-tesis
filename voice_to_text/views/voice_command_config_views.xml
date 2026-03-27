@@ -1,0 +1,61 @@
+<odoo>
+    <record id="view_voice_command_config_form" model="ir.ui.view">
+        <field name="name">voice.command.config.form</field>
+        <field name="model">voice.command.config</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name" placeholder="Ej: Registro de Citas"/>
+                        <field name="model_id" options="{'no_create': True}"/>
+                        <field name="trigger_words" placeholder="cita, consulta, turno"/>
+                        <field name="action_type"/>
+                        <label for="prueba"/>
+                        <div class="o_row">
+                            <field name="prueba"/>
+                            <button name="action_IA_complete" 
+                                    type="object" 
+                                    string="IA" 
+                                    icon="fa-magic" 
+                                    class="oe_link"/>
+                        </div>
+                    </group>
+                    <notebook>
+                        <!-- <page string="Configuración de Campos">
+                            <field name="field_ids">
+                                <tree>
+                                    <field name="field_description"/>
+                                    <field name="name"/>
+                                    <field name="ttype"/>
+                                    <field name="name_ia"/>
+                                </tree>
+                            </field>
+                        </page> -->
+                        <page string="Configuración de Campos">
+                            <field name="field_config_ids">
+                                <tree editable="bottom">
+                                    <field name="parent_model_id" invisible="1"/>
+                                    
+                                    <field name="field_id" options="{'no_create': True}"/>
+                                    <field name="field_description"/>
+                                    <field name="name"/>
+                                    <field name="ttype"/>
+                                    <field name="name_ia"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_voice_command_config" model="ir.actions.act_window">
+        <field name="name">Configuración de Comandos de Voz</field>
+        <field name="res_model">voice.command.config</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem id="menu_voice_config_root" name="Asistente de Voz" />
+    <menuitem id="menu_voice_command_config" name="Configuración de Comandos" action="action_voice_command_config" parent="menu_voice_config_root"/>
+</odoo>

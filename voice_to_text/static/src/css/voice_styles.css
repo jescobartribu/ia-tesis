@@ -1,0 +1,28 @@
+.o_field_voice_container {
+    position: relative;
+    display: inline-flex; /* Para que no ocupe todo el ancho si no es necesario */
+    align-items: center;
+    width: 100%;
+}
+
+.o_ghost_text {
+    position: absolute;
+    pointer-events: none;
+    color: #bbc2ca; 
+    white-space: pre;
+    padding-left: 0rem;
+    font-family: inherit;
+    font-size: inherit;
+    z-index: 1;
+    top: 1.4px;
+    /* margin-left: 0;
+    display: inline-block; */
+}
+
+
+
+.o_field_voice_container input {
+    background: transparent !important;
+    position: relative;
+    z-index: 2;
+}

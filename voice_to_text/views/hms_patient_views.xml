@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_open_search_wizard" model="ir.actions.act_window">
+        <field name="name">Buscar por Cédula (Externo)</field>
+        <field name="res_model">search.patient.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field> 
+    </record>
+
+    <menuitem id="menu_search_patient_external"
+              name="Consultar Cédula Mediq"
+              parent="acs_hms_base.main_menu_patient"
+              action="action_open_search_wizard"
+              sequence="20"/>
+
+    <record id="view_patient_form_inherit" model="ir.ui.view">
+        <field name="name">hms.patient.form.inherit</field>
+        <field name="model">hms.patient</field>
+        <field name="inherit_id" ref="acs_hms_base.view_patient_form"/> 
+        <field name="arch" type="xml">
+            <xpath expr="//form//header" position="inside">
+                <button name="action_send_to_external_system" 
+                    string="Sincronizar con Mediq" 
+                    type="object" 
+                    class="btn-primary"
+                    invisible="not vat"/> 
+            </xpath>
+        </field>
+    </record>
+</odoo>
+<!-- <?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_open_search_wizard" model="ir.actions.act_window">
+        <field name="name">Buscar por Cédula</field>
+        <field name="res_model">search.patient.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field> 
+    </record>
+
+    <record id="view_patient_form_inherit" model="ir.ui.view">
+        <field name="name">hms.patient.form.inherit</field>
+        <field name="model">hms.patient</field>
+        <field name="inherit_id" ref="acs_hms_base.view_patient_form"/> 
+        <field name="arch" type="xml">
+            <xpath expr="//form//header" position="inside">
+                <button name="%(action_open_search_wizard)d" 
+                        string="Buscar en mediq" 
+                        type="action" 
+                        class="oe_highlight"/>
+            </xpath>
+        </field>
+    </record>
+</odoo> -->

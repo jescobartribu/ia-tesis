@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="voice_to_text.AiAutoFillField" t-inherit="web.CharField" t-inherit-mode="primary" owl="1">
+        <xpath expr="//input" position="after">
+            <button class="btn btn-secondary ms-1" 
+                    t-on-click="onGetAiSuggestion" 
+                    type="button" 
+                    title="IA">
+                <i class="fa fa-magic"/>
+            </button>
+        </xpath>
+    </t>
+</templates>

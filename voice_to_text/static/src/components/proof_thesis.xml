@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="web.CharField" t-inherit-mode="extension" owl="1">
+        <xpath expr="//input" position="attributes">
+            <attribute name="t-ref">input</attribute>
+        </xpath>
+
+        <!-- <xpath expr="//input" position="after">
+            <button 
+                type="button"
+                class="btn btn-link fa fa-microphone" 
+                t-att-class="{'text-danger': state.isListening}"
+                t-on-click.stop="_onVoiceIconClick"
+                style="margin-left: -50px; z-index: 10; position: relative;"
+            />
+        </xpath> -->
+        <xpath expr="//input" position="replace">
+            <div class="o_field_voice_container">
+                <input 
+                    t-att-id="props.id"
+                    type="text"
+                    class="o_input"
+                    t-ref="input"
+                    t-on-keydown="_onKeyDown"
+                    t-on-input="_onInput"
+                />
+                <span t-if="state.ghostText" class="o_ghost_text" t-ref="ghost">
+                    <t t-esc="state.ghostText"/>
+                </span>
+            </div>
+        </xpath>
+    </t>
+    <t t-inherit="web.TextField" t-inherit-mode="extension" owl="1">
+        <!-- <xpath expr="//textarea" position="attributes">
+            <attribute name="t-ref">input</attribute>
+        </xpath> -->
+        <xpath expr="//textarea" position="replace">
+            <div class="o_field_voice_container">
+                <textarea 
+                    class="o_input" 
+                    t-att-id="props.id" 
+                    t-ref="input"
+                    t-on-keydown="_onKeyDown"
+                    t-on-input="_onInput"
+                    style="background: transparent !important; position: relative; z-index: 2;"
+                />
+                <span t-if="state.ghostText" class="o_ghost_text">
+                    <t t-esc="state.ghostText"/>
+                </span>
+            </div>
+        </xpath>
+        <xpath expr="//textarea" position="after">
+            <button type="button" class="btn btn-link fa fa-microphone" t-att-class="{'text-danger': state.isListening}" t-on-click.stop="_onVoiceIconClick" style="margin-left: -50px; z-index: 10; position: relative;"/>
+        </xpath>
+    </t>
+</templates>
