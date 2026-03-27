@@ -115,7 +115,6 @@ export class VoiceSystray extends Component {
     }
 
     // async _apiIA(text) {
-    //     const apiKey = "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"; 
     //     const url = "https://api.groq.com/openai/v1/chat/completions";
     //     // this.productos = await this.orm.searchRead("product.product", [], ["name"]);
     //     // console.log('PRODUCTOS DENTRO DEL HOOK:', this.productos);
@@ -324,7 +323,6 @@ export class VoiceSystray extends Component {
 
     // async _speak(text) {
     //     const VOICE_ID = "nbcvT3C2tyOd2OsRAtUf"; // El ID que estabas usando
-    //     const API_KEY = "sk_457256bc75061df22057af4c64c39e82f5326a7af54cafaa"; // REEMPLAZA ESTO
         
     //     try {
     //         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
