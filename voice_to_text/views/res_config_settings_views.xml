@@ -1,0 +1,41 @@
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.elevenlabs</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="voice_to_text" string="Voice to Text" name="voice_to_text" >
+                    <block title="Configuración de Voz" name="elevenlabs_settings_block">
+                        <setting string="Credenciales Elevenlabs" help="Configura tu API Key de ElevenLabs">
+                            <div class="content-group">
+                                <div class="mt16">
+                                    <label for="elevenlabs_api_key" class="col-lg-3 o_light_label"/>
+                                    <field name="elevenlabs_api_key" class="pr-5" password="True"/>
+                                </div>
+                                <div class="mt5">
+                                    <label for="elevenlabs_voice_id" class="col-lg-3 o_light_label"/>
+                                    <field name="elevenlabs_voice_id" class="pr-5"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                    <block title="Configuración de IA de comprensión" name="groq_settings_block">
+                        <setting string="Credenciales Groq" help="Configura tu API Key de Groq">
+                            <div class="content-group">
+                                <div class="mt16">
+                                    <label for="groq_api_key" class="col-lg-3 o_light_label"/>
+                                    <field name="groq_api_key" class="pr-5" password="True"/>
+                                </div>
+                                <!-- <div class="mt5">
+                                    <label for="elevenlabs_voice_id" class="col-lg-3 o_light_label"/>
+                                    <field name="elevenlabs_voice_id" class="pr-5"/>
+                                </div> -->
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

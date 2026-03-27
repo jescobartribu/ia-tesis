@@ -14,11 +14,15 @@ class SearchPatientWizard(models.TransientModel):
 
     def action_search_external(self):
         self.ensure_one()
+        user_bot = self.env['res.users'].sudo().search([('login', '=', 'pruebamediq@gmail.com')], limit=1)
+
+        if not user_bot or not user_bot.token_external:
+            raise UserError("No se ha configurado el token externo para el usuario de integración.")
+
+        token = user_bot.token_external
         
-        # Configuración del sistema externo
-        # Lo ideal es que estas variables estén en System Parameters
         url = "http://143.198.73.129:17000/api/check_patient"
-        token = "c78f19fe569447d62417bc43107e8d229f9e9ad8" 
+        # token = "c78f19fe569447d62417bc43107e8d229f9e9ad8" 
         
         headers = {
             "Authorization": f"Bearer {token}",

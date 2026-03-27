@@ -114,95 +114,118 @@ export class VoiceSystray extends Component {
         }
     }
 
+    // async _apiIA(text) {
+    //     const apiKey = "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"; 
+    //     const url = "https://api.groq.com/openai/v1/chat/completions";
+    //     // this.productos = await this.orm.searchRead("product.product", [], ["name"]);
+    //     // console.log('PRODUCTOS DENTRO DEL HOOK:', this.productos);
+    //     // const listaProductos = this.productos
+    //     const reglasDinamicas = this.voiceConfigs.map(c => {
+    //         const campos = c.fields.map(f => `- Campo técnico: "${f.name}" (el usuario lo llamará: "${f.name_ia || f.name}")`).join("\n");
+    //         return `COMANDO: ${c.name}
+    //         - Usar modelo: "${c.model_name}"
+    //         - Intención: "${c.action_type}"
+    //         - Campos a extraer (USA SOLO LOS NOMBRES TÉCNICOS COMO LLAVE EN EL JSON):
+    //         ${campos}`;
+    //     }).join("\n\n");
+
+    //     const systemPrompt = `
+    //         Eres un procesador de lenguaje natural llamado Irene para Odoo 17.
+    //         Tu objetivo es transformar dictados con posibles errores en comandos JSON estructurados.
+    //         REGLA CRÍTICA DE ACTIVACIÓN:
+    //         1. Si el dictado NO comienza o no contiene el nombre "Irene", responde con {"status": "ignored"}.
+    //         2. Si el dictado dice "Irene" seguido de una instrucción, procésalo normalmente.
+
+    //         CONFIGURACIÓN ACTUAL DE COMANDOS:
+    //         ${reglasDinamicas}
+
+    //         ESTRUCTURA OBLIGATORIA DE RESPUESTA:
+    //         {
+    //             "status": "success" o "error",
+    //             "intent": "create" o "filter",
+    //             "model": "nombre.del.modelo.odoo",
+    //             "data": {
+    //                 "campo_odoo": "valor_extraido"
+    //             },
+    //             "answer": "Mensaje de respuesta, diciendo brevemente que acción se realizara, ejemplo realizando creación de cliente con nombre: jesus, cedula: 311101361, etc",
+    //             "msg": "Envio del mensaje si se cambio el mensaje que se envio en alguna, solo si es necesario",
+    //             "reasoning": "Breve explicación de por qué corregiste el texto"
+    //         }
+
+    //         REGLAS DE NEGOCIO:
+    //         1. CORRECCIÓN: Si el texto tiene algun error de coherencia o que no conste sentido con lo que esta pidiendo en algunas de las palabras puedes modificar la frase.
+    //         2. En el objeto "data", las llaves DEBEN ser los nombres técnicos de los campos. Si el usuario dice "nombre", tú escribes "name" (o el nombre técnico que corresponda).
+    //         3. Si la persona dice algo como nombre completo, debes buscar si se parece a uno de los nombres de la data, ejemplo en este caso nombre completo se refiere a nombre 
+    //     `;
+
+    //     console.log(text)
+    //     const body = {
+    //         model: "llama-3.1-8b-instant",
+    //         messages: [
+    //             { 
+    //                 role: "system", 
+    //                 content: systemPrompt
+    //             },
+    //             { 
+    //                 role: "user", 
+    //                 content: `Analiza y estructura este dictado: "${text}"` 
+    //             }
+    //         ],
+    //         response_format: { type: "json_object" }
+    //     };
+
+    //     try {
+    //         const response = await fetch(url, {
+    //             method: "POST",
+    //             headers: {
+    //                 "Authorization": `Bearer ${apiKey}`,
+    //                 "Content-Type": "application/json"
+    //             },
+    //             body: JSON.stringify(body)
+    //         });
+            
+    //         if (!response.ok) {
+    //             const errorDetails = await response.json();
+    //             console.error("Detalles del error de Groq:", errorDetails);
+    //             throw new Error("Error en la API de Groq");
+    //         }
+    //         console.log("interim: ", text)
+    //         const data = await response.json(); 
+    
+    //         console.log("Respuesta completa de la API:", data);
+
+    //         const content = data.choices[0].message.content;
+    //         const aiData = JSON.parse(content);
+            
+    //         console.log("Objeto JSON final:", aiData);
+            
+    //         return aiData;
+    //     } catch (error) {
+    //         console.error("Fallo al conectar con la IA:", error);
+    //         return null;
+    //     }
+    // }
+
     async _apiIA(text) {
-        const apiKey = "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"; 
-        const url = "https://api.groq.com/openai/v1/chat/completions";
-        // this.productos = await this.orm.searchRead("product.product", [], ["name"]);
-        // console.log('PRODUCTOS DENTRO DEL HOOK:', this.productos);
-        // const listaProductos = this.productos
+        // Mantienes tu lógica de reglas dinámicas porque OWL conoce el estado de la UI
         const reglasDinamicas = this.voiceConfigs.map(c => {
             const campos = c.fields.map(f => `- Campo técnico: "${f.name}" (el usuario lo llamará: "${f.name_ia || f.name}")`).join("\n");
-            return `COMANDO: ${c.name}
-            - Usar modelo: "${c.model_name}"
-            - Intención: "${c.action_type}"
-            - Campos a extraer (USA SOLO LOS NOMBRES TÉCNICOS COMO LLAVE EN EL JSON):
-            ${campos}`;
+            return `COMANDO: ${c.name}\n- Usar modelo: "${c.model_name}"\n- Intención: "${c.action_type}"\n- Campos:\n${campos}`;
         }).join("\n\n");
 
-        const systemPrompt = `
-            Eres un procesador de lenguaje natural llamado Irene para Odoo 17.
-            Tu objetivo es transformar dictados con posibles errores en comandos JSON estructurados.
-            REGLA CRÍTICA DE ACTIVACIÓN:
-            1. Si el dictado NO comienza o no contiene el nombre "Irene", responde con {"status": "ignored"}.
-            2. Si el dictado dice "Irene" seguido de una instrucción, procésalo normalmente.
-
-            CONFIGURACIÓN ACTUAL DE COMANDOS:
-            ${reglasDinamicas}
-
-            ESTRUCTURA OBLIGATORIA DE RESPUESTA:
-            {
-                "status": "success" o "error",
-                "intent": "create" o "filter",
-                "model": "nombre.del.modelo.odoo",
-                "data": {
-                    "campo_odoo": "valor_extraido"
-                },
-                "answer": "Mensaje de respuesta, diciendo brevemente que acción se realizara, ejemplo realizando creación de cliente con nombre: jesus, cedula: 311101361, etc",
-                "msg": "Envio del mensaje si se cambio el mensaje que se envio en alguna, solo si es necesario",
-                "reasoning": "Breve explicación de por qué corregiste el texto"
-            }
-
-            REGLAS DE NEGOCIO:
-            1. CORRECCIÓN: Si el texto tiene algun error de coherencia o que no conste sentido con lo que esta pidiendo en algunas de las palabras puedes modificar la frase.
-            2. En el objeto "data", las llaves DEBEN ser los nombres técnicos de los campos. Si el usuario dice "nombre", tú escribes "name" (o el nombre técnico que corresponda).
-            3. Si la persona dice algo como nombre completo, debes buscar si se parece a uno de los nombres de la data, ejemplo en este caso nombre completo se refiere a nombre 
-        `;
-
-        console.log(text)
-        const body = {
-            model: "llama-3.1-8b-instant",
-            messages: [
-                { 
-                    role: "system", 
-                    content: systemPrompt
-                },
-                { 
-                    role: "user", 
-                    content: `Analiza y estructura este dictado: "${text}"` 
-                }
-            ],
-            response_format: { type: "json_object" }
-        };
-
         try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${apiKey}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(body)
+            // Llamada al servidor Odoo
+            const aiData = await this.rpc('/groq/process_command', {
+                text: text,
+                rules: reglasDinamicas
             });
-            
-            if (!response.ok) {
-                const errorDetails = await response.json();
-                console.error("Detalles del error de Groq:", errorDetails);
-                throw new Error("Error en la API de Groq");
-            }
-            console.log("interim: ", text)
-            const data = await response.json(); 
-    
-            console.log("Respuesta completa de la API:", data);
 
-            const content = data.choices[0].message.content;
-            const aiData = JSON.parse(content);
-            
-            console.log("Objeto JSON final:", aiData);
-            
+            console.log("Respuesta de Irene:", aiData);
             return aiData;
+
         } catch (error) {
-            console.error("Fallo al conectar con la IA:", error);
-            return null;
+            console.error("Fallo la comunicación con el servidor Odoo:", error);
+            return { status: "error", reasoning: "No se pudo contactar con el servidor" };
         }
     }
 
@@ -267,97 +290,22 @@ export class VoiceSystray extends Component {
     }
         
 
-    // async _processCommands(text) {
-    //     const lowerText = text.toLowerCase();
-    //     console.log("LowerText", lowerText)
-    //     // Buscamos el patrón: "crear" + "nombre"
-    //     if (lowerText.includes("crear") && lowerText.includes("nombre")) {
-    //         // Extraemos lo que viene después de "nombre"
-    //         const parts = lowerText.split("nombre");
-    //         console.log("parts", parts)
-    //         if (parts.length > 1) {
-    //             const nuevoNombre = parts[1].trim();
-    //             console.log("nuevo nombre", nuevoNombre)
-    //             if (nuevoNombre) {
-    //                 try {
-    //                     // Llamada al ORM de Odoo para crear el producto
-    //                     const productId = await this.orm.create("product.product", [{
-    //                         name: nuevoNombre,
-    //                         type: 'consu', // Tipo consumible por defecto
-    //                     }]);
-    //                     console.log("productID", productId)
-    //                     this.voiceState.transcript = `✅ ¡Producto creado!: ${nuevoNombre}`;
-    //                     // Opcional: Actualizar Fuse.js con el nuevo producto
-    //                     this.productos.push({ id: productId, name: nuevoNombre });
-    //                     this.fuse.setCollection(this.productos);
-                        
-    //                 } catch (error) {
-    //                     this.voiceState.transcript = "❌ Error al crear producto en Odoo";
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     if (lowerText.includes("filtrar")) {
-    //         // Buscamos la palabra después de "por"
-    //         const parts = lowerText.split("por");
-    //         if (parts.length > 1) {
-    //             let busqueda = parts[1].trim(); // Ejemplo: "p" o "pastillas"
-                
-    //             // Si el usuario dijo "por p", busqueda será "p"
-    //             // Queremos que empiece por esa letra
-    //             const domain = [['name', '=ilike', busqueda + '%']];
-
-    //             // Ejecutamos la acción de abrir la vista de productos con el filtro aplicado
-    //             await this.actionService.doAction({
-    //                 type: "ir.actions.act_window",
-    //                 name: `Productos filtrados por: ${busqueda}`,
-    //                 res_model: "product.product",
-    //                 views: [[false, "kanban"], [false, "list"], [false, "form"]],
-    //                 domain: domain,
-    //                 target: "current",
-    //             });
-
-    //             this.voiceState.transcript = `Filtrando productos por "${busqueda}"...`;
-    //         }
-    //     }
-    // }
-
-    async _speak(text) {
-        const VOICE_ID = "nbcvT3C2tyOd2OsRAtUf";
-        const API_KEY = "sk_80e10300fc4e4558acedcdd630ea2f604ec5683316db5556"; 
-
-        try {
-            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'xi-api-key': API_KEY
-                },
-                body: JSON.stringify({
+        async _speak(text) {
+            try {
+                const audioBase64 = await this.rpc('/fenix/get_audio', {
                     text: text,
-                    model_id: "eleven_turbo_v2_5",
-                    voice_settings: { stability: 0.5, similarity_boost: 0.8 }
-                })
-            });
+                });
 
-            if (!response.ok) throw new Error("Fallo en ElevenLabs");
-
-            const audioBlob = await response.blob();
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const audio = new Audio();
-            
-            // Esta es la parte clave: esperar a que el navegador cargue el audio
-            audio.src = audioUrl;
-            audio.play().catch(e => console.error("Error al reproducir audio:", e));
-
-            // Limpieza para que el navegador no se ponga lento
-            audio.onended = () => URL.revokeObjectURL(audioUrl);
-
-        } catch (error) {
-            console.warn("ElevenLabs falló, usando voz local de Google...");
-            // this._speak(text); // Tu función de respaldo con Helena/Google
+                if (audioBase64.error) {
+                    console.error("Error desde el servidor:", audioBase64.error);
+                    return;
+                }
+                const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
+                audio.play();
+            } catch (error) {
+                console.error("Error en la llamada RPC:", error);
+            }
         }
-    }
     async _initFuse() {
         if (this.fuse) return; // Si ya está listo, no hacer nada
 
@@ -375,81 +323,48 @@ export class VoiceSystray extends Component {
     }
 
     // async _speak(text) {
-    //     // if (!window.speechSynthesis) return;
-
-    //     // // Detener cualquier locución previa
-    //     // window.speechSynthesis.cancel();
-
-    //     // const utterance = new SpeechSynthesisUtterance(text);
+    //     const VOICE_ID = "nbcvT3C2tyOd2OsRAtUf"; // El ID que estabas usando
+    //     const API_KEY = "sk_457256bc75061df22057af4c64c39e82f5326a7af54cafaa"; // REEMPLAZA ESTO
         
-    //     // // Configurar idioma y tono
-    //     // utterance.lang = 'es-ES';
-    //     // utterance.rate = 1.0; // Velocidad (0.1 a 10)
-    //     // utterance.pitch = 1.1; // Tono (un poco más alto para sonar más femenino)
+    //     try {
+    //         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
+    //             method: 'POST',
+    //             headers: {
+    //                 'Content-Type': 'application/json',
+    //                 'xi-api-key': API_KEY // Asegúrate de que este nombre sea exacto
+    //             },
+    //             body: JSON.stringify({
+    //                 text: text,
+    //                 model_id: "eleven_multilingual_v2",
+    //                 voice_settings: {
+    //                     stability: 0.5,
+    //                     similarity_boost: 0.8
+    //                 }
+    //             })
+    //         });
 
-    //     // // Intentar encontrar una voz femenina específica
-    //     // const voices = window.speechSynthesis.getVoices();
-    //     // const femaleNames = ['Helena', 'Laura', 'Sabina', 'Google español'];
-    //     // // 2. Buscamos una voz que sea española Y esté en nuestra lista de preferidas
-    //     // let selectedVoice = voices.find(v => 
-    //     //     v.lang.includes('es') && femaleNames.some(name => v.name.includes(name))
-    //     // );
+    //         if (!response.ok) {
+    //             const errorBody = await response.json();
+    //             console.error("Error de ElevenLabs:", errorBody);
+    //             // Si falla ElevenLabs, usamos la voz del navegador como respaldo (Backup)
+    //             this._speak(text); 
+    //             return;
+    //         }
 
-    //     // // 3. Si por alguna razón no la encuentra, forzamos Helena que ya vimos que existe en tu log
-    //     // if (!selectedVoice) {
-    //     //     selectedVoice = voices.find(v => v.name.includes('Helena'));
-    //     // }
+    //         const blob = await response.blob();
+    //         const url = URL.createObjectURL(blob);
+    //         const audio = new Audio(url);
+            
+    //         audio.oncanplaythrough = () => audio.play();
+            
+    //         // Limpieza de memoria
+    //         audio.onended = () => URL.revokeObjectURL(url);
 
-    //     // if (selectedVoice) {
-    //     //     utterance.voice = selectedVoice;
-    //     //     console.log("Irene está usando la voz de:", selectedVoice.name);
-    //     // }
-
-    //     // window.speechSynthesis.speak(utterance);
+    //     } catch (error) {
+    //         console.error("Error en la llamada a ElevenLabs:", error);
+    //         this._speak(text); // Respaldo
+    //     }
     // }
-    async _speak(text) {
-        const VOICE_ID = "nbcvT3C2tyOd2OsRAtUf"; // El ID que estabas usando
-        const API_KEY = "sk_457256bc75061df22057af4c64c39e82f5326a7af54cafaa"; // REEMPLAZA ESTO
-        
-        try {
-            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'xi-api-key': API_KEY // Asegúrate de que este nombre sea exacto
-                },
-                body: JSON.stringify({
-                    text: text,
-                    model_id: "eleven_multilingual_v2",
-                    voice_settings: {
-                        stability: 0.5,
-                        similarity_boost: 0.8
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                const errorBody = await response.json();
-                console.error("Error de ElevenLabs:", errorBody);
-                // Si falla ElevenLabs, usamos la voz del navegador como respaldo (Backup)
-                this._speak(text); 
-                return;
-            }
-
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const audio = new Audio(url);
-            
-            audio.oncanplaythrough = () => audio.play();
-            
-            // Limpieza de memoria
-            audio.onended = () => URL.revokeObjectURL(url);
-
-        } catch (error) {
-            console.error("Error en la llamada a ElevenLabs:", error);
-            this._speak(text); // Respaldo
-        }
-    }
 
     async _onClick() {
 

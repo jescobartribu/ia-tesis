@@ -20,8 +20,9 @@
         # 'reports/payment_voucher_report.xml',
         'security/ir.model.access.csv',
         'views/voice_command_config_views.xml',
-        'views/res_user_views.xml',
-        'views/hms_patient_views.xml',
+        # 'views/res_user_views.xml',
+        # 'views/hms_patient_views.xml',
+        'views/res_config_settings_views.xml',
         'wizards/search_patient_wizard_views.xml'
     ],
     'assets': {

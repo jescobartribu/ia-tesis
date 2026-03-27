@@ -7,8 +7,15 @@ class VoiceIA(http.Controller):
 
     @http.route('/fenix/get_audio', type='json', auth='user')
     def get_elevenlabs_audio(self, text):
-        api_key = "30faffafdbc1665632c96c7fa6a6462fcb5b11d43c1dace683ab041c8fbb4cd9"
-        voice_id = "pNInz6obpgDQGcFmaJgB" # Voz de Adam (Estándar)
+        params = request.env['ir.config_parameter'].sudo()
+        api_key = params.get_param('voice_to_text.api_key')
+        voice_id = params.get_param('voice_to_text.voice_id')
+        # api_key = "30faffafdbc1665632c96c7fa6a6462fcb5b11d43c1dace683ab041c8fbb4cd9"
+        # voice_id = "pNInz6obpgDQGcFmaJgB" # Voz de Adam (Estándar)
+
+        if not api_key:
+            return {"error": "API Key no configurada en Odoo"}
+
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 
         headers = {

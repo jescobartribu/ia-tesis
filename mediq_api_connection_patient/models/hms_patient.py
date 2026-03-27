@@ -13,9 +13,15 @@ class HmsPatient(models.Model):
 
     def action_send_to_external_system(self):
         self.ensure_one()
-        
+        user_bot = self.env['res.users'].sudo().search([('login', '=', 'pruebamediq@gmail.com')], limit=1)
+
+        if not user_bot or not user_bot.token_external:
+            raise UserError("No se ha configurado el token externo para el usuario.")
+
+        token = user_bot.token_external
+
         url = "http://143.198.73.129:17000/api/create_patient"
-        token = "c78f19fe569447d62417bc43107e8d229f9e9ad8"
+        # token = "c78f19fe569447d62417bc43107e8d229f9e9ad8"
         
         headers = {
             "Authorization": f"Bearer {token}",

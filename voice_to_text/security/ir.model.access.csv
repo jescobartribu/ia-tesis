@@ -2,4 +2,3 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_voice_command_config,voice.command.config,model_voice_command_config,base.group_user,1,1,1,1
 voice_to_text.access_res_users_apikeys_description_external,access_res_users_apikeys_description_external,voice_to_text.model_res_users_apikeys_description_external,base.group_user,1,1,1,1
 voice_to_text.access_voice_command_config_line,access_voice_command_config_line,voice_to_text.model_voice_command_config_line,base.group_user,1,1,1,1
-voice_to_text.access_search_patient_wizard,access_search_patient_wizard,voice_to_text.model_search_patient_wizard,base.group_user,1,1,1,1

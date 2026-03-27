@@ -30,12 +30,6 @@ class VoiceCommandConfig(models.Model):
         ('search', 'Solo Buscar')
     ], string="Acción", default='create', required=True)
 
-    # Los campos que la IA debe intentar extraer de la frase
-    # field_ids = fields.Many2many(
-    #     'ir.model.fields', 
-    #     string="Campos a Llenar/Filtrar",
-    #     domain="[('model_id', '=', model_id), ('ttype', 'not in', ['one2many', 'reference'])]"
-    # )
     field_config_ids = fields.One2many(
         'voice.command.config.line', 
         'parent_id', 
@@ -128,7 +122,6 @@ class VoiceCommandConfigLine(models.Model):
 
     parent_id = fields.Many2one('voice.command.config', ondelete='cascade')
     
-    # El campo real de Odoo
     field_id = fields.Many2one(
         'ir.model.fields', 
         string="Campo",
