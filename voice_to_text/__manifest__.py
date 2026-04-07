@@ -15,15 +15,12 @@
         'acs_hms'
     ],
     'data': [
-        # 'security/ir.model.access.csv',
-        #'views/global_voice_assistant.xml',
-        # 'reports/payment_voucher_report.xml',
+        # 'views/global_voice_assistant.xml',
         'security/ir.model.access.csv',
         'views/voice_command_config_views.xml',
-        # 'views/res_user_views.xml',
-        # 'views/hms_patient_views.xml',
         'views/res_config_settings_views.xml',
-        'wizards/search_patient_wizard_views.xml'
+        'views/voice_disaggregation_config_views.xml',
+        'wizards/ai_disaggregate_wizard_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
@@ -36,7 +33,8 @@
             'voice_to_text/static/src/components/search_bar_voice_views.xml',
             # 'voice_to_text/static/src/components/proof_thesis.js',
             # 'voice_to_text/static/src/components/proof_thesis.xml',
-            'voice_to_text/static/src/css/voice_styles.css'
+            'voice_to_text/static/src/css/voice_styles.css',
+            'voice_to_text/static/src/css/voice_assistant.scss'
         ],
     },
     'installable': True,

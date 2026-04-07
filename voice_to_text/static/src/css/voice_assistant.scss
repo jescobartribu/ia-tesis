@@ -1,0 +1,159 @@
+/* Contenedor de las barras */
+.voice-visualizer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    height: 40px;
+
+    .bar {
+        width: 4px;
+        height: 15px;
+        background-color: #00A09D; // Color Odoo
+        border-radius: 10px;
+        animation: sound-wave 1.2s infinite ease-in-out;
+        transition: background-color 0.3s ease, height 0.3s ease;
+
+        &:nth-child(1) { animation-delay: 0.1s; }
+        &:nth-child(2) { animation-delay: 0.3s; }
+        &:nth-child(3) { animation-delay: 0.2s; }
+        &:nth-child(4) { animation-delay: 0.4s; }
+        &:nth-child(5) { animation-delay: 0.1s; }
+    }
+
+    /* Estado Pausado: Color amarillo y barras bajas y estáticas */
+    &.paused {
+        .bar {
+            background-color: #FFD700;
+            animation-play-state: paused;
+            height: 8px !important;
+        }
+    }
+}
+
+/* Animación de la onda */
+@keyframes sound-wave {
+    0%, 100% { height: 10px; }
+    50% { height: 35px; }
+}
+
+/* Efecto de entrada suave para el texto */
+.content-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.bg-faded {
+    background-color: rgba(0, 160, 157, 0.05);
+}
+
+.italic {
+    font-style: italic;
+}
+
+// Estilos para el botón de grabación
+// Estilos para el botón de grabación
+.mic-listening {
+    color: #00A09D;
+    position: relative;
+    display: inline-block;
+    animation: mic-gentle-bob 3s ease-in-out infinite;
+    transform-origin: center center;
+    
+    // Efecto de onda sutil alrededor del micrófono
+    &::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(0, 160, 157, 0.2);
+        transform: translate(-50%, -50%) scale(0);
+        animation: mic-soft-ripple 2s ease-out infinite;
+        pointer-events: none;
+    }
+    
+    // Pequeño punto pulsante en la punta del micrófono
+    // .fa-microphone {
+    //     position: relative;
+        
+    //     &::after {
+    //         content: '';
+    //         position: absolute;
+    //         top: -2px;
+    //         right: -2px;
+    //         width: 4px;
+    //         height: 4px;
+    //         background: #00A09D;
+    //         border-radius: 50%;
+    //         animation: mic-dot-pulse 1.5s ease-in-out infinite;
+    //         box-shadow: 0 0 4px rgba(0, 160, 157, 0.6);
+    //     }
+    // }
+}
+
+// Animación principal: movimiento suave de balanceo
+// @keyframes mic-gentle-bob {
+//     0%, 100% {
+//         transform: translateY(0px) rotate(0deg);
+//     }
+//     25% {
+//         transform: translateY(-1px) rotate(2deg);
+//     }
+//     75% {
+//         transform: translateY(1px) rotate(-2deg);
+//     }
+// }
+
+// Onda suave que se expande desde el micrófono
+@keyframes mic-soft-ripple {
+    0% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0.8;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.8);
+        opacity: 0;
+    }
+}
+
+// Pequeño punto pulsante en la punta
+// @keyframes mic-dot-pulse {
+//     0%, 100% {
+//         transform: scale(1);
+//         opacity: 0.6;
+//     }
+//     50% {
+//         transform: scale(1.5);
+//         opacity: 1;
+//     }
+// }
+
+// Versión alternativa: vibración muy sutil (puedes reemplazar la animación principal)
+.mic-listening-alt {
+    animation: mic-soft-vibrate 2s ease-in-out infinite;
+}
+
+@keyframes mic-soft-vibrate {
+    0%, 100% {
+        transform: translateX(0px);
+    }
+    25% {
+        transform: translateX(-0.5px);
+    }
+    75% {
+        transform: translateX(0.5px);
+    }
+}
+
+@keyframes pulse-glow {
+    0% { filter: drop-shadow(0 0 2px rgba(0, 160, 157, 0.4)); }
+    50% { filter: drop-shadow(0 0 10px rgba(0, 160, 157, 0.8)); }
+    100% { filter: drop-shadow(0 0 2px rgba(0, 160, 157, 0.4)); }
+}

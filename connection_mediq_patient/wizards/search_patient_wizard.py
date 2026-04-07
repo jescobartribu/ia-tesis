@@ -14,18 +14,18 @@ class SearchPatientWizard(models.TransientModel):
 
     def action_search_external(self):
         self.ensure_one()
-        user_bot = self.env['res.users'].sudo().search([('login', '=', 'pruebamediq@gmail.com')], limit=1)
+        icp = self.env['ir.config_parameter'].sudo()
+        url_external = icp.get_param('connection_mediq.external_url')
+        token = icp.get_param('connection_mediq.external_token')
 
-        if not user_bot or not user_bot.token_external:
-            raise UserError("No se ha configurado el token externo para el usuario de integración.")
-
-        token = user_bot.token_external
+        if not url_external or not token:
+            raise UserError("La URL o el Token no han sido configurados en los Ajustes.")
         
-        url = "http://143.198.73.129:17000/api/check_patient"
+        url = f"{url_external}/api/check_patient"
         # token = "c78f19fe569447d62417bc43107e8d229f9e9ad8" 
         
         headers = {
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {token.strip()}",
             "Content-Type": "application/json"
         }
         

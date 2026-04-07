@@ -15,9 +15,11 @@
         'acs_hms'
     ],
     'data': [
-        # 'security/ir.model.access.csv',
+        'security/ir.model.access.csv',
+        'wizards/search_patient_wizard_views.xml',
         'views/res_user_views.xml',
         'views/hms_patient_views.xml',
+        'views/res_config_settings_views.xml',
     ],
     'installable': True,
     'application': False,

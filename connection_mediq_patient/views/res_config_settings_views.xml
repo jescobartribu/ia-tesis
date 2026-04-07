@@ -1,0 +1,28 @@
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.mediq</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="10"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Conexión Mediq" string="Conexión Mediq" name="connection_mediq">
+                    <block title="Configuración de API Externa" name="mediq_api_config">
+                        <setting string="Credenciales" help="Configura la URL y el Token para la consulta de pacientes">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="external_api_url" class="col-lg-3 o_light_label"/>
+                                    <field name="external_api_url"/>
+                                </div>
+                                <div class="row">
+                                    <label for="external_api_token" class="col-lg-3 o_light_label"/>
+                                    <field name="external_api_token" password="True"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

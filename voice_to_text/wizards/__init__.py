@@ -1,1 +1,1 @@
-from . import search_patient_wizard
+from . import ai_disaggregate_wizard

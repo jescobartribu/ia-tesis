@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+connection_mediq_patient.access_res_users_apikeys_description_external,access_res_users_apikeys_description_external,connection_mediq_patient.model_res_users_apikeys_description_external,base.group_user,1,1,1,1
+connection_mediq_patient.access_search_patient_wizard,access_search_patient_wizard,connection_mediq_patient.model_search_patient_wizard,base.group_user,1,1,1,1

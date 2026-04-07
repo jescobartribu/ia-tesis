@@ -10,7 +10,7 @@
                         <field name="model_id" options="{'no_create': True}"/>
                         <field name="trigger_words" placeholder="cita, consulta, turno"/>
                         <field name="action_type"/>
-                        <label for="prueba"/>
+                        <!-- <label for="prueba"/>
                         <div class="o_row">
                             <field name="prueba"/>
                             <button name="action_IA_complete" 
@@ -18,31 +18,48 @@
                                     string="IA" 
                                     icon="fa-magic" 
                                     class="oe_link"/>
-                        </div>
+                        </div> -->
                     </group>
                     <notebook>
-                        <!-- <page string="Configuración de Campos">
-                            <field name="field_ids">
-                                <tree>
-                                    <field name="field_description"/>
-                                    <field name="name"/>
-                                    <field name="ttype"/>
-                                    <field name="name_ia"/>
-                                </tree>
-                            </field>
-                        </page> -->
+                        <page string="Python Logica Previa">
+                            <field name="pre_python_logic"  widget="code" options="{'mode': 'python'}" placeholder="Python"/>
+                        </page>
                         <page string="Configuración de Campos">
                             <field name="field_config_ids">
                                 <tree editable="bottom">
-                                    <field name="parent_model_id" invisible="1"/>
-                                    
+                                    <field name="parent_model_id" column_invisible="1"/>
                                     <field name="field_id" options="{'no_create': True}"/>
                                     <field name="field_description"/>
                                     <field name="name"/>
                                     <field name="ttype"/>
                                     <field name="name_ia"/>
+                                    <field name="is_required" widget="boolean_toggle"/>
+                                    <field name="question_if_missing" invisible="not is_required" placeholder="Ej: ¿Cuál es el monto de la factura?"/>
                                 </tree>
                             </field>
+                        </page>
+                        <page string="Instrucciones">
+                            <field name="field_config_ids">
+                                <tree editable="bottom">
+                                    <field name="parent_model_id" invisible="1"/>
+                                    <field name="field_id" options="{'no_create': True}"/>
+                                    <field name="field_description"/>
+                                    <field name="help_instructions" placeholder="Indica a la IA reglas de formato o contexto..."/>
+                                    <field name="has_range" widget="boolean_toggle"/>
+                                    <field name="min_value" invisible="not has_range"/>
+                                    <field name="max_value" invisible="not has_range"/>
+                                    <field name="m2o_interaction" />
+                                    <field name="selection_mapping" placeholder='{"ia_term": "odoo_value"}'/>
+                                    <button name="action_generate_selection_mapping" 
+                                        type="object" 
+                                        string="Generar Mapeo" 
+                                        icon="fa-magic" 
+                                        class="btn-outline-primary mb-2"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Python Logica Posterior">
+                            <field name="post_python_logic"  widget="code" options="{'mode': 'python'}" placeholder="Python"/>
                         </page>
                     </notebook>
                 </sheet>

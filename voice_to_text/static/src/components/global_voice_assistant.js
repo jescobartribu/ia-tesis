@@ -12,12 +12,60 @@ VoiceAssistantDialog.components = { Dialog };
 VoiceAssistantDialog.props = ["*"];
 
 export class VoiceSystray extends Component {
+
     setup() {
+        this.user = useService("user");
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.productos = [];
         this.rpc = useService("rpc");
         this.silenceTimer = null;
+        this.voiceState = useState({
+            isListening: false, // Micrófono encendido
+            isAwake: false,     // ¿Ya dijo "Irene"?
+            isPaused: false,
+            transcript: "",
+            accumulatedText: ""
+        });
+        this.voiceConfigs = [];
+        this.isSentinelActive = false; 
+        this.isAwake = false;
+        this.voiceState.isProcessing = true;
+
+        onWillStart(async () => {
+            // 1. Cargamos las cabeceras de configuración
+            const configs = await this.orm.searchRead(
+                "voice.command.config", 
+                [], 
+                ["name", "model_name", "trigger_words", "action_type"]
+            );
+            
+            // 2. Traemos TODAS las líneas de una sola vez (más rápido para el servidor)
+            // Extraemos todos los IDs de las configuraciones para filtrar
+            const configIds = configs.map(c => c.id);
+            
+            const allFields = await this.orm.searchRead(
+                "voice.command.config.line",
+                [["parent_id", "in", configIds]],
+                ["name", "name_ia", "ttype", "selection_mapping", "help_instructions", "parent_id"] 
+            );
+
+            // 3. Repartimos los campos a sus respectivas configuraciones
+            for (let config of configs) {
+                config.fields = allFields.filter(f => {
+                    // Manejamos que parent_id puede venir como [id, "name"]
+                    const pId = Array.isArray(f.parent_id) ? f.parent_id[0] : f.parent_id;
+                    return pId === config.id;
+                });
+            }
+
+            this.voiceConfigs = configs;
+            console.log('Irene: Configuraciones cargadas con metadatos completos', this.voiceConfigs);
+        });
+
+        this.recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        this.recognition.continuous = true; // Fundamental para que no se apague
+        this.recognition.interimResults = true; // Para capturar la palabra clave rápido
         // Precarga de voces para evitar que la primera vez no hable
         window.speechSynthesis.getVoices();
         if (window.speechSynthesis.onvoiceschanged !== undefined) {
@@ -25,197 +73,434 @@ export class VoiceSystray extends Component {
         }
         let voces = [];
         function cargarVoces() {
-        voces = speechSynthesis.getVoices();
-        // Filtrar solo las voces en español
-        let vocesEspañol = voces.filter(voz => voz.lang.includes('es'));
-        console.log(vocesEspañol);
-        }
-
-        // Necesario esperar a que carguen
+            voces = speechSynthesis.getVoices();
+            // Filtrar solo las voces en español
+            let vocesEspañol = voces.filter(voz => voz.lang.includes('es'));
+            console.log(vocesEspañol);  
+            }
         speechSynthesis.onvoiceschanged = cargarVoces;
 
-        onWillStart(async () => {
-            this.voiceConfigs = await this.orm.searchRead(
-                "voice.command.config", 
-                [], 
-                ["name", "model_name", "trigger_words", "action_type"]
-            );
-            for (let config of this.voiceConfigs) {
-                config.fields = await this.orm.searchRead(
-                    "voice.command.config.line",
-                    [["parent_id", "=", config.id]],
-                    ["name", "name_ia"]
-                );
-            }
-            console.log('Configuraciones cargadas:', this.voiceConfigs);
-            
-            this.productos = await this.orm.searchRead("product.product", [], ["name"]);
-                console.log('PRODUCTOS DENTRO DEL HOOK:', this.productos);
-            // const productNames = this.productos.map(p => p.name).join(' | ');
-    
-            // const grammar = `#JSGF V1.0; grammar products; public <product> = ${productNames};`;
-            // console.log('Grammar:', grammar);
-            // this.medicalGrammar = grammar;
 
-            // const options = {
-            //     keys: ['name'],
-            //     threshold: 0.3, // Ajusta este valor: 0.0 es idéntico, 1.0 es cualquier cosa
-            //     includeScore: true
-            // };
-            // Usamos window.Fuse porque lo cargamos como librería externa en el manifest
-            // this.fuse = new window.Fuse(this.productos, options);
-            // console.log("sobrevivio fuse")
-        });
-        this.dialogService = useService("dialog");
-        this.voiceState = useState({ isListening: false, transcript: "" });
-        
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        this.dialogService = useService("dialog");
+        console.log("VoiceSystray montado, buscando SpeechRecognition:", SpeechRecognition);
+        
         if (SpeechRecognition) {
             this.recognition = new SpeechRecognition();
             this.recognition.lang = 'es-ES';
             this.recognition.continuous = true;
-            // this.recognition.continuous = true;
-            this.recognition.interimResults = true; // Fundamental para que veas el texto mientras hablas
+            this.recognition.interimResults = true;
+            
 
-            this.recognition.onresult = async (event) => {
-                clearTimeout(this.silenceTimer);
-                let interim = "";
-                let textAccumulated = "";
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    interim += event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        // FUSE.JS PARA CORREGIR
-                        if (interim.includes("filtrar") || interim.includes("crear")) {
-                            console.log("Comando detectado, saltando Fuse.js");
-                            textAccumulated = interim; // Mantenemos el comando limpio
-                        } else {
-                            console.log("antes fuzzy", interim)
-                            textAccumulated += this._fuzzyCorrect(interim) + " ";
-                            console.log("despues fuzzy", textAccumulated)
-                        }
-                    } else {
-                        textAccumulated += interim;
+            // --- EL MOTOR SIEMPRE LISTO ---
+            this.recognition.onresult = (event) => {
+                const text = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+                const result = event.results[event.results.length - 1];
+
+                if (text.includes("detente") || text.includes("pausa")) {
+                    this.voiceState.isPaused = true;
+                    clearTimeout(this.silenceTimer); // No procesar si pausamos
+                    this._speak("Pausado.");
+                    return;
+                }
+
+                if (this.voiceState.isPaused) {
+                    if (text.includes("continúa") || text.includes("sigue")) {
+                        this.voiceState.isPaused = false;
+                        this._speak("Reanudado.");
+                    }
+                    return;
+                }
+
+                // --- LÓGICA DE ACUMULACIÓN Y DISPARO ---
+                if (this.isAwake) {
+                    // Mostramos el texto intermedio para que el usuario vea que Irene escucha
+                    this.voiceState.transcript = this.voiceState.accumulatedText + " " + text;
+
+                    if (result.isFinal) {
+                        this.voiceState.accumulatedText += " " + text;
+                        
+                        // CADA VEZ QUE HAY UNA FRASE FINAL, REINICIAMOS EL CRONÓMETRO
+                        clearTimeout(this.silenceTimer);
+                        
+                        this.silenceTimer = setTimeout(() => {
+                            console.log("Silencio detectado. Enviando a la IA...");
+                            this._finalizeCommand();
+                        }, 6000); // segundos de silencio para procesar
+                    }
+                } else {
+                    // --- MODO CENTINELA ---
+                    // Si no está despierta, solo buscamos la palabra "irene"
+                    if (text.includes("irene")) {
+                        this.voiceState.accumulatedText = ""; 
+                        this.voiceState.transcript = "";
+                        this._wakeUpIrene();
+                        // Limpiamos el texto para que no se procese la palabra "irene" como parte del comando
                     }
                 }
-                this.voiceState.transcript = textAccumulated;
-                this.silenceTimer = setTimeout(() => {
-                if (this.voiceState.transcript.trim() !== "") {
-                    console.log("3 segundos de silencio. Procesando:", this.voiceState.transcript);
-                    // this._onVoiceComplete(this.voiceState.transcript);
-                }
-            }, 1000);
-            }
-            this.recognition.onend = () => { 
-            // Si el reconocimiento se detiene por error del navegador, lo reiniciamos si seguíamos en modo 'Listening'
-                if (this.voiceState.isListening) {
-                    this.recognition.start();
+            };
+
+            // --- EL REANIMADOR (Crucial para que no muera) ---
+            this.recognition.onend = () => {
+                // console.log("Micro apagado. ¿Reactivar?:", this.isSentinelActive);
+                if (this.isSentinelActive) {
+                    try {
+                        this.recognition.start();
+                    } catch (e) {
+                        // Ya estaba encendido, ignoramos
+                    }
                 }
             };
         }
     }
 
-    // async _apiIA(text) {
-    //     const url = "https://api.groq.com/openai/v1/chat/completions";
-    //     // this.productos = await this.orm.searchRead("product.product", [], ["name"]);
-    //     // console.log('PRODUCTOS DENTRO DEL HOOK:', this.productos);
-    //     // const listaProductos = this.productos
-    //     const reglasDinamicas = this.voiceConfigs.map(c => {
-    //         const campos = c.fields.map(f => `- Campo técnico: "${f.name}" (el usuario lo llamará: "${f.name_ia || f.name}")`).join("\n");
-    //         return `COMANDO: ${c.name}
-    //         - Usar modelo: "${c.model_name}"
-    //         - Intención: "${c.action_type}"
-    //         - Campos a extraer (USA SOLO LOS NOMBRES TÉCNICOS COMO LLAVE EN EL JSON):
-    //         ${campos}`;
-    //     }).join("\n\n");
-
-    //     const systemPrompt = `
-    //         Eres un procesador de lenguaje natural llamado Irene para Odoo 17.
-    //         Tu objetivo es transformar dictados con posibles errores en comandos JSON estructurados.
-    //         REGLA CRÍTICA DE ACTIVACIÓN:
-    //         1. Si el dictado NO comienza o no contiene el nombre "Irene", responde con {"status": "ignored"}.
-    //         2. Si el dictado dice "Irene" seguido de una instrucción, procésalo normalmente.
-
-    //         CONFIGURACIÓN ACTUAL DE COMANDOS:
-    //         ${reglasDinamicas}
-
-    //         ESTRUCTURA OBLIGATORIA DE RESPUESTA:
-    //         {
-    //             "status": "success" o "error",
-    //             "intent": "create" o "filter",
-    //             "model": "nombre.del.modelo.odoo",
-    //             "data": {
-    //                 "campo_odoo": "valor_extraido"
-    //             },
-    //             "answer": "Mensaje de respuesta, diciendo brevemente que acción se realizara, ejemplo realizando creación de cliente con nombre: jesus, cedula: 311101361, etc",
-    //             "msg": "Envio del mensaje si se cambio el mensaje que se envio en alguna, solo si es necesario",
-    //             "reasoning": "Breve explicación de por qué corregiste el texto"
-    //         }
-
-    //         REGLAS DE NEGOCIO:
-    //         1. CORRECCIÓN: Si el texto tiene algun error de coherencia o que no conste sentido con lo que esta pidiendo en algunas de las palabras puedes modificar la frase.
-    //         2. En el objeto "data", las llaves DEBEN ser los nombres técnicos de los campos. Si el usuario dice "nombre", tú escribes "name" (o el nombre técnico que corresponda).
-    //         3. Si la persona dice algo como nombre completo, debes buscar si se parece a uno de los nombres de la data, ejemplo en este caso nombre completo se refiere a nombre 
-    //     `;
-
-    //     console.log(text)
-    //     const body = {
-    //         model: "llama-3.1-8b-instant",
-    //         messages: [
-    //             { 
-    //                 role: "system", 
-    //                 content: systemPrompt
-    //             },
-    //             { 
-    //                 role: "user", 
-    //                 content: `Analiza y estructura este dictado: "${text}"` 
-    //             }
-    //         ],
-    //         response_format: { type: "json_object" }
-    //     };
-
-    //     try {
-    //         const response = await fetch(url, {
-    //             method: "POST",
-    //             headers: {
-    //                 "Authorization": `Bearer ${apiKey}`,
-    //                 "Content-Type": "application/json"
-    //             },
-    //             body: JSON.stringify(body)
-    //         });
+        // onWillStart(async () => {
+        //     this.voiceConfigs = await this.orm.searchRead(
+        //         "voice.command.config", 
+        //         [], 
+        //         ["name", "model_name", "trigger_words", "action_type"]
+        //     );
+        //     for (let config of this.voiceConfigs) {
+        //         config.fields = await this.orm.searchRead(
+        //             "voice.command.config.line",
+        //             [["parent_id", "=", config.id]],
+        //             ["name", "name_ia"]
+        //         );
+        //     }
+        //     console.log('Configuraciones cargadas:', this.voiceConfigs);
             
-    //         if (!response.ok) {
-    //             const errorDetails = await response.json();
-    //             console.error("Detalles del error de Groq:", errorDetails);
-    //             throw new Error("Error en la API de Groq");
-    //         }
-    //         console.log("interim: ", text)
-    //         const data = await response.json(); 
+        //     this.productos = await this.orm.searchRead("product.product", [], ["name"]);
+        //         console.log('PRODUCTOS DENTRO DEL HOOK:', this.productos);
+        //     // const productNames = this.productos.map(p => p.name).join(' | ');
     
-    //         console.log("Respuesta completa de la API:", data);
+        //     // const grammar = `#JSGF V1.0; grammar products; public <product> = ${productNames};`;
+        //     // console.log('Grammar:', grammar);
+        //     // this.medicalGrammar = grammar;
 
-    //         const content = data.choices[0].message.content;
-    //         const aiData = JSON.parse(content);
-            
-    //         console.log("Objeto JSON final:", aiData);
-            
-    //         return aiData;
-    //     } catch (error) {
-    //         console.error("Fallo al conectar con la IA:", error);
-    //         return null;
-    //     }
+        //     // const options = {
+        //     //     keys: ['name'],
+        //     //     threshold: 0.3, // Ajusta este valor: 0.0 es idéntico, 1.0 es cualquier cosa
+        //     //     includeScore: true
+        //     // };
+        //     // Usamos window.Fuse porque lo cargamos como librería externa en el manifest
+        //     // this.fuse = new window.Fuse(this.productos, options);
+        //     // console.log("sobrevivio fuse")
+        // });
+        // this.dialogService = useService("dialog");
+        // this.voiceState = useState({ isListening: false, transcript: "" });
+        
+        // const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        // if (SpeechRecognition) {
+        //     this.recognition = new SpeechRecognition();
+        //     this.recognition.lang = 'es-ES';
+        //     this.recognition.continuous = true;
+        //     // this.recognition.continuous = true;
+        //     this.recognition.interimResults = true; // Fundamental para que veas el texto mientras hablas
+
+        //     this.recognition.onresult = async (event) => {
+        //         const text = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+
+        //         if (text.includes("detente") || text.includes("para") || text.includes("stop")) {
+        //             this.voiceState.isPaused = true;
+        //             this._speak("Entendido, me quedo en espera. Di continúa cuando me necesites.");
+        //             this.voiceState.transcript = "En pausa... (Di 'continúa')";
+        //             return; // Detenemos cualquier procesamiento posterior
+        //         }
+
+        //         // 2. Lógica de Reactivación
+        //         if (this.voiceState.isPaused) {
+        //             if (text.includes("continúa") || text.includes("sigue") || text.includes("reanudar")) {
+        //                 this.voiceState.isPaused = false;
+        //                 this._speak("Estoy escuchando de nuevo. ¿En qué te ayudo?");
+        //                 this.voiceState.transcript = "Escuchando...";
+        //             }
+        //             return; // Mientras esté pausado, no procesamos nada más
+        //         }
+        //         else {
+        //             this._speak("Procesando....");
+        //         }
+        //         clearTimeout(this.silenceTimer);
+        //         let interim = "";
+        //         let textAccumulated = "";
+        //         for (let i = event.resultIndex; i < event.results.length; ++i) {
+        //             interim += event.results[i][0].transcript;
+        //             if (event.results[i].isFinal) {
+        //                 // FUSE.JS PARA CORREGIR
+        //                 if (interim.includes("filtrar") || interim.includes("crear")) {
+        //                     console.log("Comando detectado, saltando Fuse.js");
+        //                     textAccumulated = interim; // Mantenemos el comando limpio
+        //                 } else {
+        //                     console.log("antes fuzzy", interim)
+        //                     textAccumulated += this._fuzzyCorrect(interim) + " ";
+        //                     console.log("despues fuzzy", textAccumulated)
+        //                 }
+        //             } else {
+        //                 textAccumulated += interim;
+        //             }
+        //         }
+        //         this.voiceState.transcript = textAccumulated;
+        //         this.silenceTimer = setTimeout(() => {
+        //         if (this.voiceState.transcript.trim() !== "") {
+        //             console.log("3 segundos de silencio. Procesando:", this.voiceState.transcript);
+        //             // this._onVoiceComplete(this.voiceState.transcript);
+        //         }
+        //     }, 100);
+        //     }
+        //     this.recognition.onend = () => { 
+        //     // Si el reconocimiento se detiene por error del navegador, lo reiniciamos si seguíamos en modo 'Listening'
+        //         if (this.voiceState.isListening) {
+        //             this.recognition.start();
+        //         }
+        //     };
+        // }
     // }
 
+    // async _finalizeCommand() {
+    //     clearTimeout(this.silenceTimer); // Por seguridad
+    //     const finalSentence = this.voiceState.accumulatedText.trim();
+
+    //     if (finalSentence === "irene" || !finalSentence || finalSentence === "...") {
+    //         console.log("Ignorando comando: Solo se detectó el nombre de activación.");
+    //         return; 
+    //     }
+    //     this.voiceState.isProcessing = true; // Activa la animación
+    //     this.voiceState.transcript = "Procesando...";
+        
+        
+
+    //     this._speak("Procesando comando..."); // Feedback visual/auditivo
+
+    //     if (this.voiceState.pendingAction) {
+    //         console.log("Resolviendo duda con Irene:", finalSentence);
+    //         const action = this.voiceState.pendingAction;
+
+    //         if (action.type === 'selection_m2o') {
+    //             // 1. Inyectamos la respuesta en la data de la CITA original
+    //             action.aiData.data[action.field] = finalSentence;
+                
+    //             // 2. Guardamos la referencia y LIMPIAMOS TODO antes de reintentar
+    //             const originalAppointmentData = action.aiData;
+    //             this.voiceState.pendingAction = null; 
+    //             this.voiceState.accumulatedText = ""; 
+
+    //             this._speak(`Entendido, asignando a ${finalSentence}...`);
+
+    //             // 3. REINTENTAMOS el proceso de Odoo (sin pasar por Groq/IA)
+    //             try {
+    //                 await this._processCommands(originalAppointmentData);
+    //             } catch (error) {
+    //                 console.error("Error al reintentar cita:", error);
+    //             }
+                
+    //             // 4. IMPORTANTE: return para que NO se ejecute el código de abajo (la IA)
+    //             return; 
+    //         }
+    //     }
+
+    //     try {
+    //         let aiData = await this._apiIA(finalSentence);
+    //         if (aiData && aiData.status === "success") {
+    //             await this._processCommands(aiData);
+    //             this.voiceState.accumulatedText = ""; // Limpiar tras éxito
+    //             this.voiceState.transcript = "Comando ejecutado.";
+    //             this.voiceState.isProcessing = false;
+    //         }
+    //     } catch (error) {
+    //         // const msg = error.data?.message || "";
+    //         // if (msg.includes("IRENE_MULTIPLE_CHOICE") || msg.includes("IRENE_CONFIRM_CREATE")) {
+    //         //     this.voiceState.isProcessing = false;
+    //         //     return;
+    //         // }
+    //         // else {
+    //             console.error("Error procesando con IA:", error);
+    //             this._speak("Lo siento, ocurrió un error al procesar tu comando.");
+    //         // }
+    //     }
+        
+    //     // Auto-cerrar el wizard tras procesar
+    //     setTimeout(() => {
+    //         if (this.isAwake && !this.voiceState.pendingAction) {
+    //             this.isAwake = false;
+    //             if (this.closeWizard) this.closeWizard();
+    //             if (this.isSentinelActive) {
+    //                 try { this.recognition.start(); } catch(e) {}
+    //             }
+    //         }
+    //     }, 2000);
+    // }
+    // async _finalizeCommand() {
+    //     clearTimeout(this.silenceTimer);
+    //     // Usamos el texto acumulado que Irene escuchó mientras esperaba
+    //     const finalSentence = this.voiceState.accumulatedText.trim().toLowerCase();
+
+    //     if (!finalSentence || finalSentence === "irene") return;
+
+    //     console.log("Analizando comando final:", finalSentence);
+
+    //     if (this.voiceState.pendingAction) {
+    //         const action = this.voiceState.pendingAction;
+    //         console.log("Duda detectada. Aplicando respuesta a:", action.field);
+
+    //        if (action.type === 'selection_m2o') {
+    //             // Clonación profunda para evitar referencias
+    //             const retryData = JSON.parse(JSON.stringify(action.aiData));
+    //             retryData.data[action.field] = finalSentence;
+                
+    //             this.voiceState.pendingAction = null;
+    //             this.voiceState.accumulatedText = ""; 
+                
+    //             this._speak(`Entendido, seleccionando ${finalSentence}.`);
+    //             await this._processCommands(retryData);
+    //             return; 
+    //         }
+    //     }
+
+    //     // --- FLUJO NORMAL (Solo si no había nada pendiente) ---
+    //     this.voiceState.isProcessing = true;
+    //     this.voiceState.transcript = "Procesando...";
+    //     this._speak("Procesando comando...");
+
+    //     try {
+    //         // Solo llamamos a la IA si no estamos en medio de una resolución de duda
+    //         let aiData = await this._apiIA(finalSentence);
+    //         if (aiData && aiData.status === "success") {
+    //             await this._processCommands(aiData);
+    //             this.voiceState.accumulatedText = ""; 
+    //         }
+    //     } catch (error) {
+    //         console.error("Error en IA:", error);
+    //     }
+    // }
+    async _finalizeCommand() {
+        clearTimeout(this.silenceTimer);
+        
+        const finalSentence = this.voiceState.accumulatedText.trim().toLowerCase();
+
+        // Si no hay texto o solo dijo su nombre, reseteamos y volvemos a modo espera
+        if (!finalSentence || finalSentence === "irene") {
+            this._resetToSentinel();
+            return;
+        }
+
+        console.log("Analizando comando final:", finalSentence);
+
+        // --- CASO 1: RESOLUCIÓN DE DUDAS (Pending Action) ---
+        if (this.voiceState.pendingAction) {
+            const action = this.voiceState.pendingAction;
+            console.log("Duda detectada. Aplicando respuesta a:", action.field);
+
+            if (action.type === 'selection_m2o') {
+                const retryData = JSON.parse(JSON.stringify(action.aiData));
+                retryData.data[action.field] = finalSentence;
+                
+                this.voiceState.pendingAction = null;
+                this._speak(`Entendido, seleccionando ${finalSentence}.`);
+                
+                await this._processCommands(retryData);
+                this._resetToSentinel(); // IMPORTANTE: Volver a esperar a "Irene"
+                return; 
+            }
+        }
+
+        // --- CASO 2: FLUJO NORMAL (Llamada a la IA) ---
+        this.voiceState.isProcessing = true;
+        this.voiceState.transcript = "Procesando...";
+        // this._speak("Procesando comando..."); // Opcional, puede ser molesto si es muy seguido
+
+        try {
+            let aiData = await this._apiIA(finalSentence);
+            
+            if (aiData && aiData.status === "success") {
+                await this._processCommands(aiData);
+            } else if (aiData && aiData.status === "error") {
+                this._speak("Lo siento, hubo un error al procesar la solicitud.");
+            }
+        } catch (error) {
+            console.error("Error en IA:", error);
+            this._speak("Ocurrió un error de conexión.");
+        } finally {
+            // --- SIEMPRE REGRESAR AL MODO CENTINELA AL FINALIZAR ---
+            this._resetToSentinel();
+        }
+    }
+
+    /**
+     * Función auxiliar para limpiar el estado y volver al modo centinela
+     */
+    _resetToSentinel() {
+        this.isAwake = false;
+        this.voiceState.isAwake = false;
+        this.voiceState.isProcessing = false;
+        this.voiceState.accumulatedText = ""; 
+        this.voiceState.transcript = "";
+        console.log("Irene: Regresando a modo centinela...");
+    }
     async _apiIA(text) {
         // Mantienes tu lógica de reglas dinámicas porque OWL conoce el estado de la UI
+        console.log("Texto a enviar a la IA:", text);
+        const cleanedTranscript = text.replace(/(\d)\s+(\d)/g, '$1$2');
+        console.log("Texto enviado a la IA corregido:", cleanedTranscript);
+        // const reglasDinamicas = this.voiceConfigs.map(c => {
+        //     const campos = c.fields.map(f => `- Campo técnico: "${f.name}" (el usuario lo llamará: "${f.name_ia || f.name}")`).join("\n");
+        //     return `COMANDO: ${c.name}\n- Usar modelo: "${c.model_name}"\n- Intención: "${c.action_type}"\n- Campos:\n${campos}`;
+        // }).join("\n\n");
+        console.log("Revisando estructura de voiceConfigs:", this.voiceConfigs);
         const reglasDinamicas = this.voiceConfigs.map(c => {
-            const campos = c.fields.map(f => `- Campo técnico: "${f.name}" (el usuario lo llamará: "${f.name_ia || f.name}")`).join("\n");
-            return `COMANDO: ${c.name}\n- Usar modelo: "${c.model_name}"\n- Intención: "${c.action_type}"\n- Campos:\n${campos}`;
+            const campos = c.fields.map(f => {
+                let info = `- Campo: "${f.name}" (Usuario dice: "${f.name_ia || f.name}")`;
+                console.log(`Procesando campo: ${f.name}, Tipo: ${f.ttype}, Tiene Mapping: ${!!f.selection_mapping}`);
+                
+                // Si tiene mapeo de selección, se lo inyectamos a la IA
+                // if (f.ttype === 'selection' && f.selection_mapping) {
+                //     const mapStr = JSON.stringify(f.selection_mapping);
+                //     info += `\n  ⚠️ REGLA DE SELECCIÓN: Si el usuario menciona algo similar a las llaves de este diccionario: ${mapStr}, debes devolver el VALOR asociado. El output debe ser exclusivamente la llave técnica en inglés. No uses lenguaje natural.`;
+                // }
+                if (f.ttype === 'selection' && f.selection_mapping) {
+                    let mappingValido = null;
+
+                    // Intentamos convertir el texto de Odoo en un objeto real de JS
+                    try {
+                        mappingValido = typeof f.selection_mapping === 'string' 
+                            ? JSON.parse(f.selection_mapping) 
+                            : f.selection_mapping;
+                    } catch (e) {
+                        console.error("Error al parsear selection_mapping para el campo:", f.name);
+                    }
+
+                    if (mappingValido) {
+                        const transformaciones = Object.entries(mappingValido)
+                            .map(([key, value]) => `    - "${key}" → "${value}"`)
+                            .join("\n");
+
+                        info += `\n  ⚠️ REGLA DE TRADUCCIÓN OBLIGATORIA:
+                Sustituye lo que diga el usuario por el valor técnico exacto:
+                ${transformaciones}
+                * Nota: El resultado en el JSON debe ser solo el valor de la derecha.`;
+                    }
+                }
+                if (f.ttype === 'text' || f.ttype === 'html') {
+                    info += `\n  ⚠️ REGLA DE CAPTURA: Este campo es de texto largo. NO intentes desglosar su contenido en otros campos. Vuelca toda la narrativa aquí de forma íntegra.`;
+                }
+                // if (f.ttype === 'text' || f.ttype === 'html') {
+                //     info += `\n  🚨 REGLA DE ORO: NO RESUMAS. Copia LITERALMENTE cada palabra que el usuario diga sobre el motivo o descripción. Si el usuario habla por 1 minuto, pon las 100 palabras aquí. Es un error crítico omitir detalles médicos.`;
+                // }
+                // Si tiene instrucciones extra (help_instructions)
+                if (f.help_instructions) {
+                    info += `\n  📝 NOTA: ${f.help_instructions}`;
+                }
+                
+                return info;
+            }).join("\n");
+
+            return `COMANDO: ${c.name}\n- Modelo: "${c.model_name}"\n- Intención: "${c.action_type}"\n- Campos y Reglas:\n${campos}`;
         }).join("\n\n");
 
         try {
             // Llamada al servidor Odoo
+            console.log("Enviando a Odoo para procesamiento con IA. Texto limpio:", cleanedTranscript);
+            console.log("Reglas dinámicas enviadas a Odoo:", reglasDinamicas);
             const aiData = await this.rpc('/groq/process_command', {
-                text: text,
+                text: cleanedTranscript,
                 rules: reglasDinamicas
             });
 
@@ -246,65 +531,179 @@ export class VoiceSystray extends Component {
     }
     
     async _processCommands(aiData) {
-    // aiData contiene: { model: 'hms.patient', data: { name: 'Juan' }, intent: 'create' }
-    const transcript = aiData.answer
-    const audioBase64 = await this.rpc("/fenix/get_audio", { text: transcript });
+        // aiData contiene: { model: 'hms.patient', data: { name: 'Juan' }, intent: 'create' }
+        const transcript = aiData.answer
+        const audioBase64 = await this.rpc("/fenix/get_audio", { text: transcript });
+        const currentController = this.actionService.currentController;
+        let activeId = null;
+        if (currentController && currentController.props.resModel === aiData.model) {
+            activeId = currentController.props.resId || null;
+        }
+        console.log("ID activo detectado:", activeId, "en modelo:", currentController ? currentController.props.resModel : "N/A");
         try {
-            if (aiData.intent === 'create') {
-                // await this.orm.create(aiData.model, [aiData.data]);
-                await this.rpc("/web/dataset/call_kw/voice.command.config/voice_create_record", {
+            if (aiData.intent === 'create' || aiData.intent === 'edit') {
+                const result = await this.rpc("/web/dataset/call_kw/voice.command.config/voice_execute", {
                     model: 'voice.command.config',
-                    method: 'voice_create_record',
-                    args: [aiData.model, aiData.data],
-                    kwargs: {},
+                    method: 'voice_execute',
+                    args: [aiData.model, { ...aiData.data, active_id: activeId }],
+                    kwargs: {
+                        context: { ...(this.user?.context || {}), voice_action_type: aiData.intent }
+                    },
                 });
-                console.log("Registro creado con éxito en", aiData.model);
-                if (audioBase64 && !audioBase64.error) {
-                    const audio = new Audio("data:audio/mp3;base64," + audioBase64);
-                    audio.play();
-                } else {
-                    console.error("Error al obtener audio:", audioBase64.error);
+
+                console.log(`Resultado de ${aiData.intent}:`, result);
+
+                if (result && (result.id || result.status === 'success')) {
+                    // Feedback de voz (Irene habla)
+                    const textToSpeak = result.message || "Proceso completado";
+                    const audioResult = await this.rpc("/fenix/get_audio", { text: textToSpeak });
+                    
+                    if (audioResult && !audioResult.error) {
+                        const audio = new Audio("data:audio/mp3;base64," + audioResult);
+                        audio.play();
+                    }
+
+                    // Si fue una edición y ya estamos en el formulario, refrescamos la vista
+                    if (aiData.intent === 'edit' && activeId && currentController) {
+                        await this.actionService.restore(currentController.jsId);
+                    } 
+                    // Si fue creación o edición de un registro que no teníamos abierto, navegamos a él
+                    if (result && result.status === 'error') {
+                        this._speak(result.message); // Irene dirá: "No encontré al profesional Dr Wilson"
+                        return;
+                    }
+                    else if (result.id) {
+                        await this.actionService.doAction({
+                            type: "ir.actions.act_window",
+                            res_model: result.model || aiData.model,
+                            res_id: result.id,
+                            views: [[false, "form"]],
+                            target: "current",
+                        });
+                    }
                 }
             }
             else if (aiData.intent === "filter") {
-            // FILTRO DINÁMICO
-            const domain = [];
-            for (let campo in aiData.data) {
-                domain.push([campo, "ilike", aiData.data[campo]]);
-            }
+                // FILTRO DINÁMICO
+                const domain = [];
+                for (let campo in aiData.data) {
+                    domain.push([campo, "ilike", aiData.data[campo]]);
+                }
 
-            await this.actionService.doAction({
-                type: "ir.actions.act_window",
-                name: `Búsqueda por Voz: ${aiData.model}`,
-                res_model: aiData.model,
-                views: [[false, "list"], [false, "form"]],
-                domain: domain,
-                target: "current",
-            });
-            this.voiceState.transcript = `🔍 Filtrando ${aiData.model}...`;
-        }
+                await this.actionService.doAction({
+                    type: "ir.actions.act_window",
+                    name: `Búsqueda por Voz: ${aiData.model}`,
+                    res_model: aiData.model,
+                    views: [[false, "list"], [false, "form"]],
+                    domain: domain,
+                    target: "current",
+                });
+                this.voiceState.transcript = `🔍 Filtrando ${aiData.model}...`;
+            }
+            else if (aiData.intent === "search") {
+                console.log("Ejecutando búsqueda con dominio:", aiData.data);
+                const domain = [];
+                for (let field in aiData.data) {
+                    domain.push([field, "ilike", aiData.data[field]]);
+                }
+
+                // Primero buscamos en el servidor si existe el registro
+                const records = await this.orm.searchRead(aiData.model, domain, ["id"], { limit: 2 });
+
+                if (records.length === 1) {
+                    // Si solo hay uno, vamos directo al FORMULARIO
+                    await this.actionService.doAction({
+                        type: "ir.actions.act_window",
+                        res_model: aiData.model,
+                        res_id: records[0].id,
+                        views: [[false, "form"]],
+                        target: "current",
+                    });
+                    this._speak("He encontrado al paciente. Aquí tienes su ficha.");
+                } else if (records.length > 1) {
+                    // Si hay varios, mostramos la LISTA (comportamiento de filtro)
+                    await this.actionService.doAction({
+                        type: "ir.actions.act_window",
+                        name: `Coincidencias de búsqueda`,
+                        res_model: aiData.model,
+                        views: [[false, "list"], [false, "form"]],
+                        domain: domain,
+                        target: "current",
+                    });
+                    this._speak("He encontrado varias coincidencias. Selecciona la correcta.");
+                } else {
+                    this._speak("Lo siento, no encontré ningún registro con esos datos.");
+                }
+            }
         } catch (error) {
             console.error("Error en el ORM:", error);
+            const msg = error.data ? error.data.message : "Error desconocido";
+            if (msg.includes("IRENE_MULTIPLE_CHOICE")) {
+                const [_, field, text] = msg.split("|");
+                // Extraer nombres: "He encontrado varios registros: A, B, C" -> ["A", "B", "C"]
+                const matches = text.split(":")[1].split(",").map(n => n.trim().replace("?", ""));
+
+                if (matches.length > 5) {
+                    this._speak("He encontrado demasiadas coincidencias. Por favor, sé más específico con el nombre.");
+                } else {
+                    // this.voiceState.pendingAction = {
+                    //     type: 'selection',
+                    //     field: field,
+                    //     options: matches,
+                    //     text: text,
+                    //     aiData: aiData // Guardamos el comando original para reintentar
+                    // };
+                    // this.voiceState.transcript = "Esperando que elijas una opción...";
+        
+                    // // --- ADICIÓN CRÍTICA ---
+                    // this.voiceState.accumulatedText = ""; 
+                    // this.voiceState.transcript = "";
+                    // // ------------------------
+
+                    this._speak(text);
+                }
+                return; // Detenemos la ejecución
+            }
+
+            // 2. Manejo de Confirmación de Creación
+            if (msg.includes("IRENE_CONFIRM_CREATE")) {
+                const [_, model, name] = msg.split("|");
+                this.voiceState.pendingAction = {
+                    type: 'create_m2o',
+                    model: model, // Modelo a crear (ej: res.partner)
+                    name: name,   // Nombre a ponerle
+                    aiData: aiData // Acción original (ej: crear cita)
+                };
+                this._speak(`No encontré a ${name}. ¿Quieres que lo cree en el sistema?`);
+                return;
+            }
+
+            // Error genérico de Odoo
+            this._speak("Lo siento, ocurrió un error en el servidor: " + msg);
+        }
+    }        
+
+    async _speak(text) {
+        try {
+            if (this.currentAudio) {
+                this.currentAudio.pause();
+            }
+            const audioBase64 = await this.rpc('/fenix/get_audio', {
+                text: text,
+            });
+
+            if (audioBase64.error) {
+                console.error("Error desde el servidor:", audioBase64.error);
+                return;
+            }
+            this.currentAudio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
+            this.currentAudio.play();
+            return this.currentAudio;
+        } catch (error) {
+            console.error("Error en la llamada RPC:", error);
         }
     }
-        
 
-        async _speak(text) {
-            try {
-                const audioBase64 = await this.rpc('/fenix/get_audio', {
-                    text: text,
-                });
-
-                if (audioBase64.error) {
-                    console.error("Error desde el servidor:", audioBase64.error);
-                    return;
-                }
-                const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
-                audio.play();
-            } catch (error) {
-                console.error("Error en la llamada RPC:", error);
-            }
-        }
     async _initFuse() {
         if (this.fuse) return; // Si ya está listo, no hacer nada
 
@@ -321,99 +720,60 @@ export class VoiceSystray extends Component {
         console.log("Fuse inicializado correctamente");
     }
 
-    // async _speak(text) {
-    //     const VOICE_ID = "nbcvT3C2tyOd2OsRAtUf"; // El ID que estabas usando
-        
-    //     try {
-    //         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
-    //             method: 'POST',
-    //             headers: {
-    //                 'Content-Type': 'application/json',
-    //                 'xi-api-key': API_KEY // Asegúrate de que este nombre sea exacto
-    //             },
-    //             body: JSON.stringify({
-    //                 text: text,
-    //                 model_id: "eleven_multilingual_v2",
-    //                 voice_settings: {
-    //                     stability: 0.5,
-    //                     similarity_boost: 0.8
-    //                 }
-    //             })
-    //         });
+    _wakeUpIrene() {
+        clearTimeout(this.silenceTimer);
+        this.isAwake = true;
+        this.voiceState.accumulatedText = ""; // Empezamos dictado limpio
+        this.voiceState.transcript = "...";
 
-    //         if (!response.ok) {
-    //             const errorBody = await response.json();
-    //             console.error("Error de ElevenLabs:", errorBody);
-    //             // Si falla ElevenLabs, usamos la voz del navegador como respaldo (Backup)
-    //             this._speak(text); 
-    //             return;
-    //         }
+        this._speak("¿Dime, en qué puedo ayudarte?");
 
-    //         const blob = await response.blob();
-    //         const url = URL.createObjectURL(blob);
-    //         const audio = new Audio(url);
-            
-    //         audio.oncanplaythrough = () => audio.play();
-            
-    //         // Limpieza de memoria
-    //         audio.onended = () => URL.revokeObjectURL(url);
-
-    //     } catch (error) {
-    //         console.error("Error en la llamada a ElevenLabs:", error);
-    //         this._speak(text); // Respaldo
-    //     }
-    // }
-
-    async _onClick() {
-
-        if (!this.recognition) return;
-        const SpeechGrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList;
-        if (SpeechGrammarList && this.medicalGrammar) {
-            const speechRecognitionList = new SpeechGrammarList();
-            speechRecognitionList.addFromString(this.medicalGrammar, 1);
-            this.recognition.grammars = speechRecognitionList;
-            console.log("Gramática inyectada en el motor de voz");
-        }
-        if (!this.medicalGrammar && this.productos.length > 0) {
-            const productNames = this.productos.map(p => p.name).join(' | ');
-            this.medicalGrammar = `#JSGF V1.0; grammar products; public <product> = ${productNames};`;
-        }
-
-        this.voiceState.transcript = "Esperando voz...";
-        this.voiceState.isListening = true;
-        this.recognition.start();
-        
         this.closeWizard = this.dialogService.add(VoiceAssistantDialog, {
-            title: "Asistente de Voz",
-            transcript: this.voiceState, // Pasamos el estado para que se actualice en el wizard
-            onClose: () => this.recognition.stop(), 
+            title: "Irene AI",
+            transcript: this.voiceState,
+            onClose: () => {
+                this.isAwake = false;
+                this.voiceState.accumulatedText = "";
+            }, 
         });
+    }
+    _onClick() {
+        if (!this.recognition) return;
 
-        this.recognition.onend = async () => {
+        if (this.isSentinelActive) {
+            // Apagar todo
+            this.isSentinelActive = false;
+            this.isAwake = false;
             this.voiceState.isListening = false;
-            let aiData =  await this._apiIA(this.voiceState.transcript);
-            // this.voiceState.answer = aiData.answer
-            // await this._processCommands(this.voiceState.transcript);
-            if (aiData && aiData.status === "success") {
-                this.voiceState.answer = aiData.answer;
-                // this._speak(aiData.answer);
-                await this._processCommands(aiData);
-            } else if (aiData && aiData.status === "ignored") {
-                console.log("Irene escuchó algo, pero no era para ella.");
-                this.voiceState.transcript = ""; // Limpiamos para no confundir
-                this.closeWizard(); // Cerramos discretamente
-            }
-            // Esperamos 2 segundos para que el usuario lea lo que dijo y cerramos
-            setTimeout(async() => {
-                console.log("Cerrando wizard automáticamente...");
+            this.recognition.stop();
+            console.log("Irene desactivada.");
+        } else {
+            // Encender modo escucha
+            this.isSentinelActive = true;
+            this.voiceState.isListening = true;
+            this.recognition.start();
+            console.log("Irene en modo centinela (esperando 'Irene')...");
+        }
+    }
+
+    _activateWizard() {
+        // 1. Sonido de activación o saludo
+        this._speak("Dime, te escucho.");
+
+        // 2. Abrir el diálogo visual
+        this.closeWizard = this.dialogService.add(VoiceAssistantDialog, {
+            title: "Irene AI Activa",
+            transcript: this.voiceState,
+            close: () => {
+                this.voiceState.isAwake = false; // Vuelve a modo centinela al cerrar
                 this.closeWizard();
-            }, 1000);
-        };
+            },
+        });
     }
 }
 
 VoiceSystray.template = "voice_to_text.VoiceSystray";
 registry.category("systray").add("voice_to_text.VoiceAssistant", { Component: VoiceSystray });
 VoiceSystray.props = {
-    "*": true, // Esto le dice a OWL: "Acepto cualquier prop que me envíes"
+    "*": true, 
 };
